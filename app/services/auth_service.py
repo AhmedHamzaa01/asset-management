@@ -47,3 +47,19 @@ class AuthService:
             refresh_token=refresh_token,
             token_type="bearer",
         )
+
+    def register(self, email: str, password: str) -> User:
+        from uuid import uuid4
+        from app.core.exceptions import ConflictError
+        from app.core.security import hash_password
+
+        if self.user_repository.exists_by_email(email):
+            raise ConflictError("Email already registered")
+
+        user = User(
+            id=uuid4(),
+            email=email,
+            hashed_password=hash_password(password),
+            organization_id=uuid4(),
+        )
+        return self.user_repository.create(user)

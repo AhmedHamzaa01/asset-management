@@ -14,3 +14,12 @@ class UserRepository:
 
     def get_by_id(self, user_id: UUID) -> User | None:
         return self.db.query(User).filter(User.id == user_id).first()
+
+    def create(self, user: User) -> User:
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def exists_by_email(self, email: str) -> bool:
+        return self.db.query(User).filter(User.email == email).first() is not None

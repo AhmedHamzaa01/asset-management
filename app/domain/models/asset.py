@@ -10,7 +10,7 @@ from app.infrastructure.database import Base
 class Asset(Base):
     __tablename__ = "assets"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     type = Column(Enum(AssetType), nullable=False)
     value = Column(String(500), nullable=False)
     status = Column(Enum(AssetStatus), default=AssetStatus.ACTIVE, nullable=False)
@@ -19,7 +19,7 @@ class Asset(Base):
     source = Column(String(100), default="import")
     tags = Column(ARRAY(String), default=[])
     extra_data = Column(JSON, default={})
-    organization_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    organization_id = Column(UUID(as_uuid=True), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("type", "value", "organization_id", name="uq_asset_type_value_org"),
