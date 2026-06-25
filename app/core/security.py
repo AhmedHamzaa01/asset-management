@@ -7,15 +7,23 @@ from passlib.context import CryptContext
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedError
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
+
+# bcrypt silently truncates passwords at 72 bytes; we enforce this explicitly
+# to avoid passlib/bcrypt version compatibility errors
+_MAX_BCRYPT_BYTES = 72
+
+
+def _prepare_password(password: str) -> str:
+    return password.encode("utf-8")[:_MAX_BCRYPT_BYTES].decode("utf-8", errors="ignore")
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_prepare_password(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(_prepare_password(plain_password), hashed_password)
 
 
 def _create_token(
