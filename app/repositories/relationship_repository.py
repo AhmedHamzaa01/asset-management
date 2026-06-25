@@ -9,6 +9,48 @@ class RelationshipRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def get_related_assets(
+        self,
+        asset_id,
+    ):
+        relationships = (
+        self.db.query(Relationship)
+        .filter(
+            (
+                Relationship.parent_asset_id
+                == asset_id
+            )
+            |
+            (
+                Relationship.child_asset_id
+                == asset_id
+            )
+        )
+        .all()
+         )
+
+        ids = set()
+
+        for relation in relationships:
+
+            ids.add(
+                relation.parent_asset_id
+            )
+
+            ids.add(
+                relation.child_asset_id
+            )
+
+        ids.discard(asset_id)
+
+        return (
+            self.db.query(Asset)
+            .filter(
+                Asset.id.in_(ids)
+            )
+            .all()
+        )    
+
     def create(self, relationship: Relationship) -> Relationship:
         self.db.add(relationship)
         self.db.commit()
