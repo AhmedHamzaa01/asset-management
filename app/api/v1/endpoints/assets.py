@@ -46,12 +46,25 @@ def create_asset(
 
     return AssetResponse.model_validate(asset)
 
+
+@router.patch("/{asset_id}/stale")
+def mark_stale(
+    asset_id: int,
+    current_user: CurrentUserDep,
+    service: AssetServiceDep,
+):
+    return service.mark_asset_stale(
+        asset_id=asset_id,
+        organization_id=current_user.organization_id,
+    )
+
 @router.get(
     "/{asset_id}/graph",
     response_model=AssetGraphResponse,
 )
 def get_graph(
-    asset_id: UUID,
+    asset_id : int,
+    current_user: CurrentUserDep,
     service: AssetService = Depends(
         get_asset_service
     ),
@@ -59,9 +72,27 @@ def get_graph(
     return (
         service
         .get_asset_graph(
-            asset_id
+            asset_id,
+            organization_id=current_user.organization_id
         )
     )
+
+
+# @router.get(
+#     "/{asset_id}/graph",
+#     response_model=AssetGraphResponse,
+# )
+# def get_graph(
+#     asset_id: UUID,
+#     service: AssetService = Depends(
+#         get_asset_service
+#     ),
+# ):
+#     return (
+#         service.get_asset_graph(
+#             asset_id
+#         )
+#     )
 
 @router.get("/", response_model=list[AssetResponse])
 def get_assets(
@@ -73,6 +104,8 @@ def get_assets(
     status: Optional[AssetStatus] = None,
     tag: Optional[str] = None,
     search: Optional[str] = None,
+    sort: str | None = Query(None),
+    order: str = Query("desc"),
 ) -> list[AssetResponse]:
 
     assets = service.list_assets(
@@ -83,6 +116,8 @@ def get_assets(
         status=status,
         tag=tag,
         search=search,
+        sort=sort,
+        order=order,
     )
 
     return [

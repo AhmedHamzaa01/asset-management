@@ -6,12 +6,14 @@ from app.core.exceptions import NotFoundError
 from app.domain.enums import AssetStatus
 from app.domain.models.asset import Asset
 from app.repositories.asset_repository import AssetRepository
+from app.repositories.relationship_repository import RelationshipRepository
 
 
 class AssetService:
 
-    def __init__(self, repository: AssetRepository) -> None:
+    def __init__(self, repository: AssetRepository, relationship_repository: RelationshipRepository) -> None:
         self.repository = repository
+        self.relationship_repository = relationship_repository
 
     def bulk_import(self, assets, organization_id: UUID):
         inserted = 0
@@ -102,6 +104,8 @@ class AssetService:
         status,
         tag,
         search,
+        sort,
+        order,
     ) -> list[Asset]:
 
         return self.repository.list_assets(
@@ -112,6 +116,8 @@ class AssetService:
             status=status,
             tag=tag,
             search=search,
+            sort=sort,
+            order=order,
         )
 
     def get_asset(
@@ -172,26 +178,49 @@ class AssetService:
 
     def get_asset_graph(
     self,
-    asset_id,
+    asset_id: int,
+    organization_id: UUID,
     ):
         asset = (
-            self.asset_repo
-            .get_by_id(asset_id)
+            self.repository
+            .get_by_id(asset_id, organization_id)
         )
 
         if not asset:
-            raise NotFoundException(
+            raise NotFoundError(
                 "Asset not found"
             )
 
         related = (
-            self.relationship_repo
+            self.relationship_repository
             .get_related_assets(
-                asset_id
+                asset_id,
+                organization_id,
             )
         )
 
         return {
             "asset": asset,
             "related_assets": related
-        }    
+        }
+    def mark_asset_stale(
+        self,
+        asset_id: int,
+        organization_id: UUID,
+    ):
+
+        asset = self.repository.get_by_id(
+            asset_id,
+            organization_id,
+        )
+
+        if not asset:
+            raise NotFoundError(
+                "Asset not found"
+            )
+
+        asset.status = AssetStatus.STALE
+
+        return self.repository.save(
+            asset
+        )    

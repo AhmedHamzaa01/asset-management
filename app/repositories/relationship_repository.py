@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.domain.models import asset
 from app.domain.models.relationship import Relationship
 
 
@@ -11,42 +12,51 @@ class RelationshipRepository:
 
     def get_related_assets(
         self,
-        asset_id,
+        asset_id: int,
+        organization_id: UUID,
     ):
         relationships = (
-        self.db.query(Relationship)
-        .filter(
-            (
-                Relationship.parent_asset_id
-                == asset_id
+            self.db.query(Relationship)
+            .filter(
+                Relationship.organization_id
+                == organization_id
             )
-            |
-            (
-                Relationship.child_asset_id
-                == asset_id
+            .filter(
+                (
+                    Relationship.source_asset_id
+                    == asset_id
+                )
+                |
+                (
+                    Relationship.target_asset_id
+                    == asset_id
+                )
             )
+            .all()
         )
-        .all()
-         )
 
-        ids = set()
+        related_ids = set()
 
         for relation in relationships:
 
-            ids.add(
-                relation.parent_asset_id
-            )
+            if relation.source_asset_id != asset_id:
+                related_ids.add(
+                    relation.source_asset_id
+                )
 
-            ids.add(
-                relation.child_asset_id
-            )
-
-        ids.discard(asset_id)
+            if relation.target_asset_id != asset_id:
+                related_ids.add(
+                    relation.target_asset_id
+                )
 
         return (
-            self.db.query(Asset)
+            self.db.query(asset.Asset)
             .filter(
-                Asset.id.in_(ids)
+                asset.Asset.id.in_(related_ids)
+            )
+            .filter(
+                asset.Asset.organization_id
+                == organization_id
             )
             .all()
         )    

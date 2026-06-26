@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.api.v1.schemas import asset
 from app.domain.models.asset import Asset
 from app.domain.enums import AssetStatus, AssetType
 
@@ -45,6 +46,8 @@ class AssetRepository:
         status: Optional[AssetStatus] = None,
         tag: Optional[str] = None,
         search: Optional[str] = None,
+        sort=None,
+        order="desc",
     ) -> List[Asset]:
         query = self.db.query(Asset).filter(Asset.organization_id == organization_id)
 
@@ -59,5 +62,26 @@ class AssetRepository:
             query = query.filter(Asset.tags.contains([tag]))
         if search:
             query = query.filter(Asset.value.contains(search))
+
+        sortable = {
+        "value": Asset.value,
+        "status": Asset.status,
+        "first_seen": Asset.first_seen,
+        "last_seen": Asset.last_seen,
+        }
+
+        if sort in sortable:
+
+            column = sortable[sort]
+
+            if order == "asc":
+                query = query.order_by(
+                    column.asc()
+                )
+            else:
+                query = query.order_by(
+                    column.desc()
+                )
+    
 
         return query.offset(skip).limit(limit).all()

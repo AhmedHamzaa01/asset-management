@@ -19,9 +19,14 @@ from app.services.relationship_service import RelationshipService
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_asset_service(db: Session = Depends(get_db)) -> AssetService:
-    return AssetService(AssetRepository(db))
+def get_asset_service(
+    db: Session = Depends(get_db),
+) -> AssetService:
 
+    return AssetService(
+        repository=AssetRepository(db),
+        relationship_repository=RelationshipRepository(db),
+    )
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     return AuthService(UserRepository(db))

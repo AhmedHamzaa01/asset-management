@@ -40,6 +40,6 @@ def health():
     return {"status": "healthy"}
 
 
-app.include_router(assets.router, prefix="/api/v1/assets", tags=["assets"])
+app.include_router(assets.router, prefix="/api/v1", tags=["assets"])
 app.include_router(relationships.router, prefix="/api/v1", tags=["relationships"])
 app.include_router(auth.router, prefix="/api/v1", tags=["authentication"])

@@ -16,6 +16,33 @@ class RelationshipService:
         self.relationship_repository = relationship_repository
         self.asset_repository = asset_repository
 
+    def get_asset_graph(
+        self,
+        asset_id,
+    ):
+        asset = (
+            self.asset_repository
+            .get_by_id(asset_id)
+        )
+
+        if not asset:
+            raise NotFoundException(
+                "Asset not found"
+            )
+
+        related = (
+            self.relationship_repository
+            .get_related_assets(
+                asset_id,
+                self.organization_id,
+            )
+        )
+
+        return {
+            "asset": asset,
+            "related_assets": related
+        }    
+
     def create_relationship(
         self,
         payload: RelationshipCreate,
