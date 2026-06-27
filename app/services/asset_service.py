@@ -1,7 +1,11 @@
+
 from datetime import datetime, timezone
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from app.api.v1.schemas.asset import AssetCreate, AssetUpdate
+from app.api.v1.schemas.import_schema import RawAssetRecord
 from app.core.exceptions import NotFoundError
 from app.domain.enums import AssetStatus
 from app.domain.models.asset import Asset
@@ -11,40 +15,47 @@ from app.repositories.relationship_repository import RelationshipRepository
 
 class AssetService:
 
-    def __init__(self, repository: AssetRepository, relationship_repository: RelationshipRepository) -> None:
+    def __init__(
+        self,
+        repository: AssetRepository,
+        relationship_repository: RelationshipRepository,
+    ) -> None:
         self.repository = repository
         self.relationship_repository = relationship_repository
 
-    def bulk_import(self, assets, organization_id: UUID):
+    # ------------------------------------------------------------------ #
+    #  Bulk import                                                         #
+    # ------------------------------------------------------------------ #
+
+    def bulk_import(self, assets: list[RawAssetRecord], organization_id: UUID) -> dict:
         inserted = 0
         updated = 0
         failed = 0
-        errors = []
+        errors: list[str] = []
 
-        for index, asset in enumerate(assets):
+        for index, raw in enumerate(assets):
+            try:
+                # Per-record validation — bad records are reported, not 422'd
+                payload = raw.to_asset_create()
+            except (ValidationError, Exception) as exc:
+                failed += 1
+                errors.append(f"Row {index}: validation error — {exc}")
+                continue
 
             try:
                 existing = self.repository.get_by_type_value(
-                    asset_type=asset.type,
-                    value=asset.value,
+                    asset_type=payload.type,
+                    value=payload.value,
                     organization_id=organization_id,
                 )
-
-                self.create_asset(
-                    payload=asset,
-                    organization_id=organization_id,
-                )
-
+                self._upsert_asset(payload, organization_id, existing)
                 if existing:
                     updated += 1
                 else:
                     inserted += 1
-
-            except Exception as e:
+            except Exception as exc:
                 failed += 1
-                errors.append(
-                    f"Row {index}: {str(e)}"
-                )
+                errors.append(f"Row {index}: {exc}")
 
         return {
             "inserted": inserted,
@@ -53,25 +64,29 @@ class AssetService:
             "errors": errors,
         }
 
-    def create_asset(
-        self,
-        payload: AssetCreate,
-        organization_id: UUID,
-    ) -> Asset:
+    # ------------------------------------------------------------------ #
+    #  Create / upsert                                                     #
+    # ------------------------------------------------------------------ #
 
+    def create_asset(self, payload: AssetCreate, organization_id: UUID) -> Asset:
         existing = self.repository.get_by_type_value(
             asset_type=payload.type,
             value=payload.value,
             organization_id=organization_id,
         )
+        return self._upsert_asset(payload, organization_id, existing)
 
+    def _upsert_asset(
+        self,
+        payload: AssetCreate,
+        organization_id: UUID,
+        existing: Asset | None,
+    ) -> Asset:
         if existing:
             existing.last_seen = datetime.now(timezone.utc)
 
             if payload.tags:
-                existing.tags = sorted(
-                    set((existing.tags or []) + payload.tags)
-                )
+                existing.tags = sorted(set((existing.tags or []) + payload.tags))
 
             if payload.extra_data:
                 existing.extra_data = {
@@ -79,6 +94,7 @@ class AssetService:
                     **payload.extra_data,
                 }
 
+            # Re-appearing stale asset → back to active
             if existing.status == AssetStatus.STALE:
                 existing.status = AssetStatus.ACTIVE
 
@@ -92,8 +108,11 @@ class AssetService:
             extra_data=payload.extra_data,
             organization_id=organization_id,
         )
-
         return self.repository.create(asset)
+
+    # ------------------------------------------------------------------ #
+    #  Read                                                                #
+    # ------------------------------------------------------------------ #
 
     def list_assets(
         self,
@@ -106,8 +125,7 @@ class AssetService:
         search,
         sort,
         order,
-    ) -> list[Asset]:
-
+    ) -> tuple[list[Asset], int]:
         return self.repository.list_assets(
             organization_id=organization_id,
             skip=skip,
@@ -120,21 +138,15 @@ class AssetService:
             order=order,
         )
 
-    def get_asset(
-        self,
-        asset_id: int,
-        organization_id: UUID,
-    ) -> Asset:
-
-        asset = self.repository.get_by_id(
-            asset_id,
-            organization_id,
-        )
-
+    def get_asset(self, asset_id: int, organization_id: UUID) -> Asset:
+        asset = self.repository.get_by_id(asset_id, organization_id)
         if not asset or asset.status == AssetStatus.ARCHIVED:
             raise NotFoundError("Asset not found")
-
         return asset
+
+    # ------------------------------------------------------------------ #
+    #  Update — status is NOT settable via PUT; use lifecycle endpoints    #
+    # ------------------------------------------------------------------ #
 
     def update_asset(
         self,
@@ -142,85 +154,47 @@ class AssetService:
         payload: AssetUpdate,
         organization_id: UUID,
     ) -> Asset:
-
-        asset = self.repository.get_by_id(
-            asset_id,
-            organization_id,
-        )
-
+        asset = self.repository.get_by_id(asset_id, organization_id)
         if not asset:
             raise NotFoundError("Asset not found")
 
-        for key, value in payload.model_dump(
-            exclude_unset=True
-        ).items():
+        for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(asset, key, value)
 
         return self.repository.save(asset)
 
-    def delete_asset(
-        self,
-        asset_id: int,
-        organization_id: UUID,
-    ) -> None:
+    # ------------------------------------------------------------------ #
+    #  Delete (soft)                                                       #
+    # ------------------------------------------------------------------ #
 
-        asset = self.repository.get_by_id(
-            asset_id,
-            organization_id,
-        )
+    def delete_asset(self, asset_id: int, organization_id: UUID) -> None:
+        asset = self.repository.get_by_id(asset_id, organization_id)
+        if not asset:
+            raise NotFoundError("Asset not found")
+        asset.status = AssetStatus.ARCHIVED
+        self.repository.save(asset)
 
+    # ------------------------------------------------------------------ #
+    #  Graph                                                               #
+    # ------------------------------------------------------------------ #
+
+    def get_asset_graph(self, asset_id: int, organization_id: UUID) -> dict:
+        asset = self.repository.get_by_id(asset_id, organization_id)
         if not asset:
             raise NotFoundError("Asset not found")
 
-        asset.status = AssetStatus.ARCHIVED
-
-        self.repository.save(asset)
-
-    def get_asset_graph(
-    self,
-    asset_id: int,
-    organization_id: UUID,
-    ):
-        asset = (
-            self.repository
-            .get_by_id(asset_id, organization_id)
+        related = self.relationship_repository.get_related_assets(
+            asset_id, organization_id
         )
+        return {"asset": asset, "related_assets": related}
 
+    # ------------------------------------------------------------------ #
+    #  Lifecycle                                                           #
+    # ------------------------------------------------------------------ #
+
+    def mark_asset_stale(self, asset_id: int, organization_id: UUID) -> Asset:
+        asset = self.repository.get_by_id(asset_id, organization_id)
         if not asset:
-            raise NotFoundError(
-                "Asset not found"
-            )
-
-        related = (
-            self.relationship_repository
-            .get_related_assets(
-                asset_id,
-                organization_id,
-            )
-        )
-
-        return {
-            "asset": asset,
-            "related_assets": related
-        }
-    def mark_asset_stale(
-        self,
-        asset_id: int,
-        organization_id: UUID,
-    ):
-
-        asset = self.repository.get_by_id(
-            asset_id,
-            organization_id,
-        )
-
-        if not asset:
-            raise NotFoundError(
-                "Asset not found"
-            )
-
+            raise NotFoundError("Asset not found")
         asset.status = AssetStatus.STALE
-
-        return self.repository.save(
-            asset
-        )    
+        return self.repository.save(asset)

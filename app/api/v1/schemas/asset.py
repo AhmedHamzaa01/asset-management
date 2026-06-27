@@ -19,7 +19,9 @@ class AssetCreate(AssetBase):
 
 
 class AssetUpdate(BaseModel):
-    status: AssetStatus | None = None
+# fields allowed via PUT /assets/{id}.
+#     `status` is intentionally excluded — use PATCH /assets/{id}/stale
+#     or DELETE /assets/{id} for lifecycle transitions.    
     source: str | None = None
     tags: list[str] | None = None
     extra_data: dict[str, Any] | None = None
@@ -37,3 +39,10 @@ class AssetResponse(BaseModel):
     extra_data: dict[str, Any]
 
     model_config = ConfigDict(from_attributes=True)
+
+class PaginatedAssetResponse(BaseModel):
+    """Paginated wrapper returned by GET /assets/."""
+    items: list[AssetResponse]
+    total: int
+    skip: int
+    limit: int

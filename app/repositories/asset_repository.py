@@ -1,10 +1,10 @@
+# app/repositories/asset_repository.py
+
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.v1.schemas import asset
 from app.domain.models.asset import Asset
 from app.domain.enums import AssetStatus, AssetType
 
@@ -25,30 +25,40 @@ class AssetRepository:
         return asset
 
     def get_by_id(self, asset_id: int, organization_id: UUID) -> Optional[Asset]:
-        return self.db.query(Asset).filter(
-            Asset.id == asset_id,
-            Asset.organization_id == organization_id,
-        ).first()
+        return (
+            self.db.query(Asset)
+            .filter(
+                Asset.id == asset_id,
+                Asset.organization_id == organization_id,
+            )
+            .first()
+        )
 
-    def get_by_type_value(self, asset_type: AssetType, value: str, organization_id: UUID) -> Optional[Asset]:
-        return self.db.query(Asset).filter(
-            Asset.type == asset_type,
-            Asset.value == value,
-            Asset.organization_id == organization_id,
-        ).first()
+    def get_by_type_value(
+        self, asset_type: AssetType, value: str, organization_id: UUID
+    ) -> Optional[Asset]:
+        return (
+            self.db.query(Asset)
+            .filter(
+                Asset.type == asset_type,
+                Asset.value == value,
+                Asset.organization_id == organization_id,
+            )
+            .first()
+        )
 
     def list_assets(
         self,
         organization_id: UUID,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 50,
         asset_type: Optional[AssetType] = None,
         status: Optional[AssetStatus] = None,
         tag: Optional[str] = None,
         search: Optional[str] = None,
         sort=None,
-        order="desc",
-    ) -> List[Asset]:
+        order: str = "desc",
+    ) -> tuple[List[Asset], int]:
         query = self.db.query(Asset).filter(Asset.organization_id == organization_id)
 
         if status is None:
@@ -63,25 +73,18 @@ class AssetRepository:
         if search:
             query = query.filter(Asset.value.contains(search))
 
+        total = query.count()
+
         sortable = {
-        "value": Asset.value,
-        "status": Asset.status,
-        "first_seen": Asset.first_seen,
-        "last_seen": Asset.last_seen,
+            "value": Asset.value,
+            "status": Asset.status,
+            "first_seen": Asset.first_seen,
+            "last_seen": Asset.last_seen,
         }
 
         if sort in sortable:
-
             column = sortable[sort]
+            query = query.order_by(column.asc() if order == "asc" else column.desc())
 
-            if order == "asc":
-                query = query.order_by(
-                    column.asc()
-                )
-            else:
-                query = query.order_by(
-                    column.desc()
-                )
-    
-
-        return query.offset(skip).limit(limit).all()
+        items = query.offset(skip).limit(limit).all()
+        return items, total
