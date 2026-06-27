@@ -37,8 +37,20 @@ class AssetResponse(BaseModel):
     source: str
     tags: list[str]
     extra_data: dict[str, Any]
+    certificate_status: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        data = super().model_validate(obj, *args, **kwargs)
+
+        if hasattr(obj, "extra_data"):
+            data.certificate_status = (
+                obj.extra_data or {}
+            ).get("certificate_status")
+
+        return data
 
 class PaginatedAssetResponse(BaseModel):
     """Paginated wrapper returned by GET /assets/."""

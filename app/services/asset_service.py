@@ -1,13 +1,16 @@
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone ,timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
 
+from app.api.v1.schemas import asset
 from app.api.v1.schemas.asset import AssetCreate, AssetUpdate
 from app.api.v1.schemas.import_schema import RawAssetRecord
 from app.core.exceptions import NotFoundError
 from app.domain.enums import AssetStatus
+from app.domain.models import asset
+from app.domain.enums import AssetType
 from app.domain.models.asset import Asset
 from app.repositories.asset_repository import AssetRepository
 from app.repositories.relationship_repository import RelationshipRepository
@@ -59,6 +62,42 @@ class AssetService:
             "failed": failed,
             "errors": errors,
         }
+    
+    def _inject_certificate_status(self, asset: Asset) -> Asset:
+        if asset.type != AssetType.CERTIFICATE:
+            return asset
+
+        metadata = asset.extra_data or {}
+        expires = metadata.get("expires")
+
+        if not expires:
+            return asset
+
+        try:
+            expires_dt = datetime.fromisoformat(
+                expires.replace("Z", "+00:00")
+            )
+
+            now = datetime.now(timezone.utc)
+
+            if expires_dt < now:
+                status = "expired"
+
+            elif expires_dt <= now + timedelta(days=30):
+                status = "expiring_soon"
+
+            else:
+                status = "valid"
+
+            asset.extra_data = {
+                **metadata,
+                "certificate_status": status,
+            }
+
+        except Exception:
+            pass
+
+        return asset
 
     def create_asset(self, payload: AssetCreate, organization_id: UUID) -> Asset:
         existing = self.repository.get_by_type_value(
@@ -114,7 +153,7 @@ class AssetService:
         sort,
         order,
     ) -> tuple[list[Asset], int]:
-        return self.repository.list_assets(
+        items, total = self.repository.list_assets(
             organization_id=organization_id,
             skip=skip,
             limit=limit,
@@ -126,11 +165,18 @@ class AssetService:
             order=order,
         )
 
+        items = [
+            self._inject_certificate_status(asset)
+            for asset in items
+        ]
+
+        return items, total
+
     def get_asset(self, asset_id: int, organization_id: UUID) -> Asset:
         asset = self.repository.get_by_id(asset_id, organization_id)
         if not asset or asset.status == AssetStatus.ARCHIVED:
             raise NotFoundError("Asset not found")
-        return asset
+        return self._inject_certificate_status(asset)
 
     def update_asset(
         self,
@@ -144,6 +190,8 @@ class AssetService:
 
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(asset, key, value)
+
+        asset.last_seen = datetime.now(timezone.utc)    
 
         return self.repository.save(asset)
 
@@ -164,7 +212,13 @@ class AssetService:
         related = self.relationship_repository.get_related_assets(
             asset_id, organization_id
         )
-        return {"asset": asset, "related_assets": related}
+        return {
+            "asset": self._inject_certificate_status(asset),
+            "related_assets": [
+                self._inject_certificate_status(a)
+                for a in related
+            ],
+        }
 
   
     def mark_asset_stale(self, asset_id: int, organization_id: UUID) -> Asset:

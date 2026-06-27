@@ -116,3 +116,102 @@ def test_unauthenticated_create_rejected(client: TestClient):
 
 def test_unauthenticated_delete_rejected(client: TestClient):
     assert client.delete("/api/v1/assets/1").status_code == 401
+    
+# 
+
+def test_expired_certificate_status(client: TestClient, auth_headers):
+    response = client.post(
+    "/api/v1/assets/",
+    json={
+    "type": "certificate",
+    "value": "CN=expired.example.com",
+    "source": "scan",
+    "extra_data": {
+    "issuer": "Let's Encrypt",
+    "expires": "2025-01-01T00:00:00+00:00",
+    },
+    },
+    headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+
+    asset_id = response.json()["id"]
+
+    response = client.get(
+        f"/api/v1/assets/{asset_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["type"] == "certificate"
+    assert body["certificate_status"] == "expired"
+    
+
+def test_expiring_soon_certificate_status(client: TestClient, auth_headers):
+    response = client.post(
+    "/api/v1/assets/",
+    json={
+    "type": "certificate",
+    "value": "CN=soon.example.com",
+    "source": "scan",
+    "extra_data": {
+    "issuer": "Let's Encrypt",
+    "expires": "2026-07-15T00:00:00+00:00",
+    },
+    },
+    headers=auth_headers,
+    )
+
+
+    assert response.status_code == 201
+
+    asset_id = response.json()["id"]
+
+    response = client.get(
+        f"/api/v1/assets/{asset_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["type"] == "certificate"
+    assert body["certificate_status"] == "expiring_soon"
+
+def test_valid_certificate_status(client: TestClient, auth_headers):
+    response = client.post(
+    "/api/v1/assets/",
+    json={
+    "type": "certificate",
+    "value": "CN=valid.example.com",
+    "source": "scan",
+    "extra_data": {
+    "issuer": "Let's Encrypt",
+    "expires": "2027-01-01T00:00:00+00:00",
+    },
+    },
+    headers=auth_headers,
+    )
+
+    
+    assert response.status_code == 201
+
+    asset_id = response.json()["id"]
+
+    response = client.get(
+        f"/api/v1/assets/{asset_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["certificate_status"] == "valid"
+    assert body["extra_data"]["certificate_status"] == "valid"
+
