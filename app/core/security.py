@@ -13,18 +13,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__trunca
 # to avoid passlib/bcrypt version compatibility errors
 _MAX_BCRYPT_BYTES = 72
 
-
 def _prepare_password(password: str) -> str:
-    return password.encode("utf-8")[:_MAX_BCRYPT_BYTES].decode("utf-8", errors="ignore")
-
+    encoded = password.encode("utf-8")
+    return encoded[:_MAX_BCRYPT_BYTES]
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(_prepare_password(password))
 
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(_prepare_password(plain_password), hashed_password)
-
 
 def _create_token(
     *,

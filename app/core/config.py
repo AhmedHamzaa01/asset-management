@@ -1,4 +1,5 @@
 import os
+import sys
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -25,3 +26,11 @@ class Settings:
 
 
 settings = Settings()
+
+if settings.JWT_SECRET_KEY == "change-me":
+    print(
+        "ERROR: JWT_SECRET_KEY is not set. "
+        "Set it in your .env file or environment before starting.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
