@@ -23,10 +23,6 @@ class AssetService:
         self.repository = repository
         self.relationship_repository = relationship_repository
 
-    # ------------------------------------------------------------------ #
-    #  Bulk import                                                         #
-    # ------------------------------------------------------------------ #
-
     def bulk_import(self, assets: list[RawAssetRecord], organization_id: UUID) -> dict:
         inserted = 0
         updated = 0
@@ -63,10 +59,6 @@ class AssetService:
             "failed": failed,
             "errors": errors,
         }
-
-    # ------------------------------------------------------------------ #
-    #  Create / upsert                                                     #
-    # ------------------------------------------------------------------ #
 
     def create_asset(self, payload: AssetCreate, organization_id: UUID) -> Asset:
         existing = self.repository.get_by_type_value(
@@ -110,10 +102,6 @@ class AssetService:
         )
         return self.repository.create(asset)
 
-    # ------------------------------------------------------------------ #
-    #  Read                                                                #
-    # ------------------------------------------------------------------ #
-
     def list_assets(
         self,
         organization_id: UUID,
@@ -144,10 +132,6 @@ class AssetService:
             raise NotFoundError("Asset not found")
         return asset
 
-    # ------------------------------------------------------------------ #
-    #  Update — status is NOT settable via PUT; use lifecycle endpoints    #
-    # ------------------------------------------------------------------ #
-
     def update_asset(
         self,
         asset_id: int,
@@ -163,9 +147,6 @@ class AssetService:
 
         return self.repository.save(asset)
 
-    # ------------------------------------------------------------------ #
-    #  Delete (soft)                                                       #
-    # ------------------------------------------------------------------ #
 
     def delete_asset(self, asset_id: int, organization_id: UUID) -> None:
         asset = self.repository.get_by_id(asset_id, organization_id)
@@ -174,9 +155,6 @@ class AssetService:
         asset.status = AssetStatus.ARCHIVED
         self.repository.save(asset)
 
-    # ------------------------------------------------------------------ #
-    #  Graph                                                               #
-    # ------------------------------------------------------------------ #
 
     def get_asset_graph(self, asset_id: int, organization_id: UUID) -> dict:
         asset = self.repository.get_by_id(asset_id, organization_id)
@@ -188,10 +166,7 @@ class AssetService:
         )
         return {"asset": asset, "related_assets": related}
 
-    # ------------------------------------------------------------------ #
-    #  Lifecycle                                                           #
-    # ------------------------------------------------------------------ #
-
+  
     def mark_asset_stale(self, asset_id: int, organization_id: UUID) -> Asset:
         asset = self.repository.get_by_id(asset_id, organization_id)
         if not asset:

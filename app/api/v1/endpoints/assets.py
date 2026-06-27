@@ -16,11 +16,6 @@ from app.services.asset_service import AssetService
 
 router = APIRouter(prefix="/assets")
 
-
-# ------------------------------------------------------------------ #
-#  Import                                                              #
-# ------------------------------------------------------------------ #
-
 @router.post("/import")
 def import_assets(
     payload: BulkImportRequest,
@@ -37,10 +32,6 @@ def import_assets(
         response.status_code = status.HTTP_207_MULTI_STATUS
     return result
 
-
-# ------------------------------------------------------------------ #
-#  CRUD                                                                #
-# ------------------------------------------------------------------ #
 
 @router.post(
     "/",
@@ -120,10 +111,6 @@ def delete_asset(
     service.delete_asset(asset_id, organization_id=current_user.organization_id)
 
 
-# ------------------------------------------------------------------ #
-#  Lifecycle                                                           #
-# ------------------------------------------------------------------ #
-
 @router.patch("/{asset_id}/stale", response_model=AssetResponse)
 def mark_stale(
     asset_id: int,
@@ -135,10 +122,6 @@ def mark_stale(
     )
     return AssetResponse.model_validate(asset)
 
-
-# ------------------------------------------------------------------ #
-#  Graph                                                               #
-# ------------------------------------------------------------------ #
 
 @router.get("/{asset_id}/graph", response_model=AssetGraphResponse)
 def get_graph(

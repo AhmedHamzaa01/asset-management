@@ -1,10 +1,6 @@
 from fastapi.testclient import TestClient
 
 
-# ------------------------------------------------------------------ #
-#  Helpers                                                             #
-# ------------------------------------------------------------------ #
-
 def _create(client, headers, type_="domain", value="example.com", source="manual"):
     r = client.post(
         "/api/v1/assets/",
@@ -14,10 +10,6 @@ def _create(client, headers, type_="domain", value="example.com", source="manual
     assert r.status_code == 201
     return r.json()
 
-
-# ------------------------------------------------------------------ #
-#  CRUD                                                                #
-# ------------------------------------------------------------------ #
 
 def test_create_asset(client: TestClient, auth_headers):
     data = _create(client, auth_headers)
@@ -52,7 +44,6 @@ def test_update_asset_cannot_change_status(client: TestClient, auth_headers):
         json={"status": "archived"},
         headers=auth_headers,
     )
-    # status is not in AssetUpdate, so Pydantic ignores it and the asset stays active
     assert response.status_code == 200
     assert response.json()["status"] == "active"
 
@@ -62,11 +53,6 @@ def test_delete_asset_is_soft_archive(client: TestClient, auth_headers):
     client.delete(f"/api/v1/assets/{asset_id}", headers=auth_headers)
     response = client.get(f"/api/v1/assets/{asset_id}", headers=auth_headers)
     assert response.status_code == 404
-
-
-# ------------------------------------------------------------------ #
-#  List / filtering / pagination                                       #
-# ------------------------------------------------------------------ #
 
 def test_filter_assets_by_type(client: TestClient, auth_headers):
     _create(client, auth_headers, type_="domain", value="a.com")
@@ -98,10 +84,6 @@ def test_pagination_returns_total(client: TestClient, auth_headers):
     assert body["limit"] == 2
 
 
-# ------------------------------------------------------------------ #
-#  Lifecycle                                                           #
-# ------------------------------------------------------------------ #
-
 def test_mark_asset_stale(client: TestClient, auth_headers):
     asset_id = _create(client, auth_headers, value="stale.com")["id"]
     response = client.patch(f"/api/v1/assets/{asset_id}/stale", headers=auth_headers)
@@ -122,10 +104,6 @@ def test_stale_asset_revives_on_reimport(client: TestClient, auth_headers):
     response = client.get(f"/api/v1/assets/{asset_id}", headers=auth_headers)
     assert response.json()["status"] == "active"
 
-
-# ------------------------------------------------------------------ #
-#  Auth                                                                #
-# ------------------------------------------------------------------ #
 
 def test_unauthenticated_get_rejected(client: TestClient):
     assert client.get("/api/v1/assets/").status_code == 401
