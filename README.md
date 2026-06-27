@@ -1,6 +1,6 @@
 # Asset Management API
 
-[![CI](https://github.com/your-username/asset-management/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/asset-management/actions/workflows/ci.yml)
+[![CI](https://github.com/AhmedHamzaa01/asset-management/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/asset-management/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?logo=fastapi)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-316192?logo=postgresql)
